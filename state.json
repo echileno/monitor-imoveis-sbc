@@ -1,15 +1,17 @@
 {
   "seen": {},
   "empty_runs": {
-    "OLX": 5,
+    "OLX": 6,
     "ZAP Imóveis": 0,
     "Viva Real": 0,
-    "Imovelweb": 5,
+    "Imovelweb": 6,
     "Chaves na Mão": 0
   },
   "warned": {
     "ZAP Imóveis": false,
     "Viva Real": false,
-    "Chaves na Mão": false
+    "Chaves na Mão": false,
+    "OLX": true,
+    "Imovelweb": true
   }
 }
