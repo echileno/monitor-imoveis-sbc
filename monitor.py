@@ -129,6 +129,34 @@ def find_url(d: dict, base: str):
     return None
 
 
+BED_KEYS = ("bedrooms", "numberofbedrooms", "quartos", "dormitorios", "dorms")
+BATH_KEYS = ("bathrooms", "numberofbathroomstotal", "numberofbathrooms", "banheiros")
+BED_RE = re.compile(r"(\d+)\s*(?:quartos?|dorms?\b|dormitorios?|suites?)")
+BATH_RE = re.compile(r"(\d+)\s*(?:banheiros?|wcs?\b)")
+
+
+def find_count(d: dict, keys):
+    """Lê quartos/banheiros de uma chave do JSON (aceita número, texto ou lista)."""
+    for k, v in d.items():
+        if k.lower() in keys:
+            if isinstance(v, list):
+                nums = [to_price(x) for x in v]
+                nums = [n for n in nums if n is not None]
+                if nums:
+                    return int(max(nums))
+            else:
+                n = to_price(v)
+                if n is not None:
+                    return int(n)
+    return None
+
+
+def count_from_text(text: str, rx):
+    """Plano B: procura '3 quartos', '2 banheiros' no texto (já normalizado)."""
+    nums = [int(x) for x in rx.findall(text)]
+    return max(nums) if nums else None
+
+
 def from_json(soup, base):
     found = {}
     for blob in json_blobs(soup):
@@ -138,7 +166,10 @@ def from_json(soup, base):
             if not (price and url):
                 continue
             text = json.dumps(d, ensure_ascii=False)[:4000]
-            found[canonical(url)] = {"url": url, "price": price, "text": text}
+            found[canonical(url)] = {
+                "url": url, "price": price, "text": text,
+                "beds": find_count(d, BED_KEYS), "baths": find_count(d, BATH_KEYS),
+            }
     return list(found.values())
 
 
@@ -195,6 +226,8 @@ def condo_regexes(condos):
 def run_search(cfg, debug=False):
     regexes = condo_regexes(cfg["condos"])
     max_rent = cfg["max_rent"]
+    min_beds = cfg.get("min_bedrooms", 0)
+    min_baths = cfg.get("min_bathrooms", 0)
     matches = {}   # url canônica -> dict
     health = {}    # fonte -> quantos anúncios brutos foram lidos
 
@@ -202,7 +235,9 @@ def run_search(cfg, debug=False):
         total_raw = 0
         failed = None
         for condo in cfg["condos"]:
-            url = src["url"].format(q=quote(condo["name"].lower()))
+            slug = condo.get("slug") or norm(condo["name"]).replace(" ", "-")
+            url = src["url"].format(
+                q=quote(condo["name"].lower()), slug=slug, max=int(max_rent))
             try:
                 page = fetch(url)
             except RuntimeError as e:
@@ -218,12 +253,26 @@ def run_search(cfg, debug=False):
             hits = 0
             for it in items:
                 text = norm(it["text"])
+                if it["price"] > max_rent:
+                    continue
+                # quartos/banheiros: usa o dado estruturado; se faltar, tenta o texto
+                beds = it.get("beds")
+                if beds is None:
+                    beds = count_from_text(text, BED_RE)
+                baths = it.get("baths")
+                if baths is None:
+                    baths = count_from_text(text, BATH_RE)
+                if beds is not None and beds < min_beds:
+                    continue
+                if baths is not None and baths < min_baths:
+                    continue
                 for cname, rx in regexes:
-                    if rx.search(text) and it["price"] <= max_rent:
+                    if rx.search(text):
                         key = canonical(it["url"])
                         matches[key] = {
                             "url": it["url"], "price": it["price"],
                             "condo": cname, "source": src["name"],
+                            "beds": beds, "baths": baths,
                         }
                         hits += 1
                         break
@@ -257,9 +306,15 @@ def listing_message(kind, m, old_price=None):
     price = fmt_brl(m["price"])
     if old_price:
         price = f"{fmt_brl(old_price)} → <b>{fmt_brl(m['price'])}</b>"
+    beds, baths = m.get("beds"), m.get("baths")
+    if beds is None or baths is None:
+        rooms = "⚠️ quartos/banheiros não identificados no anúncio, confira"
+    else:
+        rooms = f"{beds} quartos · {baths} banheiros"
     return (
         f"{head} — {html.escape(m['condo'])}\n"
         f"Aluguel: {price}\n"
+        f"{rooms}\n"
         f"Fonte: {html.escape(m['source'])}\n"
         f"{html.escape(m['url'])}"
     )
