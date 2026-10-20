@@ -1,0 +1,34 @@
+# Configuração do monitor de imóveis em São Bernardo do Campo
+
+max_rent: 4200        # só o aluguel (condomínio/IPTU não entram na conta)
+
+# Cada condomínio tem um nome de busca e apelidos aceitos no texto do anúncio.
+# A comparação ignora acentos e maiúsculas.
+condos:
+  - name: Domos
+    aliases: ["domos"]
+  - name: Trilage
+    aliases: ["trilage"]
+  - name: Anima
+    aliases: ["anima"]
+
+# {q} é trocado pelo nome do condomínio. Se algum site mudar o formato da URL,
+# é só ajustar aqui (abra a busca no navegador e copie a URL com o termo trocado por {q}).
+sources:
+  - name: OLX
+    url: "https://www.olx.com.br/imoveis/aluguel/estado-sp/grande-sao-paulo/abc/sao-bernardo-do-campo?q={q}&pe=4200"
+  - name: ZAP Imóveis
+    url: "https://www.zapimoveis.com.br/aluguel/imoveis/sp+sao-bernardo-do-campo/?transacao=aluguel&q={q}"
+  - name: Viva Real
+    url: "https://www.vivareal.com.br/aluguel/sp/sao-bernardo-do-campo/?q={q}"
+  - name: Imovelweb
+    url: "https://www.imovelweb.com.br/imoveis-aluguel-sao-bernardo-do-campo-sp-q-{q}.html"
+  - name: Chaves na Mão
+    url: "https://www.chavesnamao.com.br/imoveis-para-alugar/sp-sao-bernardo-do-campo/?keyword={q}"
+
+# Se uma fonte devolver 0 anúncios por tantas execuções seguidas, você recebe um aviso
+# (provavelmente o site bloqueou o robô ou mudou o layout).
+warn_after_empty_runs: 6
+
+# Limite de mensagens individuais por execução (o resto vai num resumo).
+max_individual_alerts: 15
